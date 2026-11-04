@@ -69,6 +69,39 @@ describe('Sync API (e2e)', () => {
     await sync('not an array').expect(400);
   });
 
+  it('unknown envelope field is 400', async () => {
+    await request(app.getHttpServer())
+      .post('/sync')
+      .send({ operations: [], device: 'x' })
+      .expect(400);
+  });
+
+  it('batch over the limit is 400 and nothing is processed', async () => {
+    const tooMany = Array.from({ length: 1001 }, (_, i) => ({
+      op_id: `op-${i}`,
+      note_id: 'N',
+      base_revision: 0,
+      text: 'x',
+    }));
+    await sync(tooMany).expect(400);
+    await request(app.getHttpServer()).get('/notes/N').expect(404);
+  });
+
+  it('malformed items do not fail the batch: the DTO only checks the envelope', async () => {
+    const res = await sync([
+      null,
+      'text',
+      { op_id: 'a', note_id: 'N', base_revision: 0, text: 'ok' },
+    ]).expect(200);
+    expect(res.body).toMatchObject({
+      results: [
+        { status: 'invalid' },
+        { status: 'invalid' },
+        { status: 'applied' },
+      ],
+    });
+  });
+
   it('GET /operations/:opId returns the stored receipt', async () => {
     await sync([{ op_id: 'a', note_id: 'N', base_revision: 0, text: 'x' }]);
     await request(app.getHttpServer())

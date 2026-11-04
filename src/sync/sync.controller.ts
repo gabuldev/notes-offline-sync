@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,9 +6,11 @@ import {
   NotFoundException,
   Param,
   Post,
+  ValidationPipe,
 } from '@nestjs/common';
 import { SyncEngine } from './domain/sync-engine';
 import type { OpResult } from './domain/types';
+import { SyncRequestDto } from './dto/sync-request.dto';
 
 @Controller()
 export class SyncController {
@@ -22,12 +23,11 @@ export class SyncController {
    */
   @Post('sync')
   @HttpCode(200)
-  sync(@Body() body: unknown): { results: OpResult[] } {
-    const operations = (body as { operations?: unknown } | null)?.operations;
-    if (!Array.isArray(operations)) {
-      throw new BadRequestException('body must be { "operations": [...] }');
-    }
-    return { results: this.engine.process(operations) };
+  sync(
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
+    body: SyncRequestDto,
+  ): { results: OpResult[] } {
+    return { results: this.engine.process(body.operations) };
   }
 
   @Get('operations/:opId')
