@@ -244,25 +244,36 @@ async function sync(d) {
     persist(d);
 
     if (batch.length > 0) {
+      const sentIds = new Set(batch.map((op) => op.op_id));
+      let status = 0; // 0 = no HTTP response at all
       let body;
-      let ok = false;
       try {
         const res = await fetch('/sync', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ operations: batch }),
         });
-        ok = res.ok;
-        body = await res.json();
+        status = res.status;
+        body = await readBody(res);
       } catch (err) {
         body = { error: String(err) };
       }
 
+      const isApiReply = Array.isArray(body?.results);
+      const ok = status >= 200 && status < 300 && isApiReply;
       const lost = ok && d.dropNext;
-      netLog({ who: d.name, request: { operations: batch }, response: body, ok, lost });
+      netLog({ who: d.name, request: { operations: batch }, response: body, ok, lost, status });
 
       if (!ok) {
-        logDevice(d, 'error', `sync failed: ${body?.message ?? body?.error ?? 'unknown error'}`);
+        // A 4xx, or a 2xx that is not the sync API, is a definitive "not applied":
+        // the ops go back to editable. No response or a 5xx is ambiguous (the server
+        // may have applied them), so they stay frozen and the next sync resends them as-is.
+        const definitive = (status >= 400 && status < 500) || (status >= 200 && status < 300 && !isApiReply);
+        if (definitive) {
+          for (const e of d.outbox) if (sentIds.has(e.op.op_id)) e.attempts -= 1;
+        }
+        const where = status ? `HTTP ${status}` : 'no response';
+        logDevice(d, 'error', `sync failed (${where}): ${describeError(body)}.${definitive ? ' Nothing was applied.' : ' Ops stay frozen and will be resent unchanged.'}`);
         return;
       }
       if (lost) {
@@ -283,19 +294,47 @@ async function sync(d) {
   }
 }
 
+/** Reads a response body without assuming it is JSON (a proxy or another server may answer). */
+async function readBody(res) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: `non-JSON response "${text.slice(0, 60)}"` };
+  }
+}
+
+function describeError(body) {
+  if (Array.isArray(body?.message)) return body.message.join('; ');
+  return body?.message ?? body?.error ?? 'unknown error';
+}
+
 // ---------- server panel ----------
+function showApiWarning(show) {
+  const el = $('api-warning');
+  if (!show) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = `This page is not talking to the sync API (opened at <code>${esc(location.origin)}</code>). Run <code>npm run start</code> and open <a href="http://localhost:3000/">http://localhost:3000</a>.`;
+}
+
 async function refreshServer() {
   const tbody = $('server-notes');
   try {
     const res = await fetch('/notes');
-    const list = await res.json();
+    const list = await readBody(res);
+    if (!res.ok || !Array.isArray(list)) throw new Error('not the sync API');
+    showApiWarning(false);
     tbody.innerHTML = list.length
       ? list
           .map((n) => `<tr><td class="mono">${esc(n.id)}</td><td>${esc(n.text) || '<span class="empty">(empty)</span>'}</td><td>v${n.revision}</td></tr>`)
           .join('')
       : '<tr><td colspan="3" class="empty">No notes on the server yet.</td></tr>';
   } catch {
-    tbody.innerHTML = '<tr><td colspan="3" class="s-error">Server not reachable. Is <code>npm run start</code> running?</td></tr>';
+    showApiWarning(true);
+    tbody.innerHTML = '<tr><td colspan="3" class="s-error">Sync API not reachable from this page.</td></tr>';
   }
 }
 
@@ -304,7 +343,7 @@ async function lookupReceipt(opId) {
   out.hidden = false;
   try {
     const res = await fetch('/operations/' + encodeURIComponent(opId));
-    out.textContent = `HTTP ${res.status}\n` + JSON.stringify(await res.json(), null, 2);
+    out.textContent = `HTTP ${res.status}\n` + JSON.stringify(await readBody(res), null, 2);
   } catch (err) {
     out.textContent = String(err);
   }
@@ -327,7 +366,7 @@ function renderNetLog() {
             ? '<span class="s-lost">response lost on the way back</span>'
             : e.ok
               ? e.response.results.map((r) => `<span class="s-${esc(r.status)}">${esc(r.status)}</span>`).join(' · ')
-              : '<span class="s-error">request failed</span>';
+              : `<span class="s-error">request failed${e.status ? ` · HTTP ${e.status}` : ' · no response'}</span>`;
           return `<li><details>
             <summary><span class="time">${e.t}</span><span class="who">${esc(e.who)}</span>
               <code>POST /sync</code><span>${e.request.operations.length} op(s)</span><span class="statuses">${summary}</span></summary>
@@ -376,7 +415,7 @@ function editorHTML(d, noteId) {
   const meta = [
     known ? `known revision v${known.revision}` : 'not confirmed by the server yet',
     pending
-      ? `queued op <code>${short(pending.op.op_id)}</code> on base ${pending.op.base_revision}${pending.attempts > 0 ? ' · sent, waiting for receipt' : ''}`
+      ? `queued op <code>${short(pending.op.op_id)}</code> on base ${pending.op.base_revision}${pending.attempts > 0 ? ' · sent, waiting for receipt (press Sync to resend)' : ''}`
       : '',
   ].filter(Boolean).join(' · ');
   const locked = pending && pending.attempts > 0;
