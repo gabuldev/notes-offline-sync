@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offline Notes Simulator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>Offline Notes Simulator</h1>
+      <p class="lede">Each device keeps its own local storage (notes cache, outbox, conflicts). Go offline, edit, reconnect and sync. The server below is the real Nest API.</p>
+    </div>
+    <div class="top-actions">
+      <button id="add-device" class="btn">+ Add device</button>
+      <button id="reset-devices" class="btn ghost">Reset devices</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="devices" class="devices" aria-label="Devices"></section>
+
+    <section class="server">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Server · <code>GET /notes</code></h2>
+          <button id="refresh-server" class="btn small">Refresh</button>
+        </div>
+        <table class="server-notes">
+          <thead><tr><th>note_id</th><th>text</th><th>revision</th></tr></thead>
+          <tbody id="server-notes"></tbody>
+        </table>
+        <form id="receipt-form" class="receipt-form">
+          <label for="receipt-op">Look up a receipt · <code>GET /operations/:op_id</code></label>
+          <div class="row">
+            <input id="receipt-op" placeholder="paste an op_id from the log" autocomplete="off">
+            <button class="btn small" type="submit">Look up</button>
+          </div>
+          <pre id="receipt-out" class="json" hidden></pre>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Network log</h2>
+          <button id="clear-log" class="btn small ghost">Clear</button>
+        </div>
+        <ol id="net-log" class="net-log"></ol>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
