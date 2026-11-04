@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { SyncModule } from './sync/sync.module';
 
-@Module({})
+@Module({
+  imports: [SyncModule],
+})
 export class AppModule {}

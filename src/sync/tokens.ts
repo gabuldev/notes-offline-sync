@@ -1,0 +1,2 @@
+export const NOTES_REPOSITORY = Symbol('NOTES_REPOSITORY');
+export const RECEIPTS_REPOSITORY = Symbol('RECEIPTS_REPOSITORY');
