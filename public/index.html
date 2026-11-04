@@ -20,6 +20,13 @@
 
   <main>
     <div id="api-warning" class="api-warning" role="alert" hidden></div>
+    <div id="restart-warning" class="restart-warning" role="status" hidden>
+      <p>The server was restarted, so its in-memory notes and receipts are gone. The devices below still hold data from the previous run.</p>
+      <div class="row">
+        <button id="restart-reset" class="btn small primary">Reset devices</button>
+        <button id="restart-keep" class="btn small">Keep device data</button>
+      </div>
+    </div>
     <section id="devices" class="devices" aria-label="Devices"></section>
 
     <section class="server">

@@ -320,7 +320,44 @@ function showApiWarning(show) {
   el.innerHTML = `This page is not talking to the sync API (opened at <code>${esc(location.origin)}</code>). Run <code>npm run start</code> and open <a href="http://localhost:3000/">http://localhost:3000</a>.`;
 }
 
+// The server keeps state in memory, so a restart wipes it while devices keep
+// their local data. /health exposes an id that changes on every restart.
+const INSTANCE_KEY = 'server-instance';
+
+const hasLocalData = () =>
+  [...devices.values()].some(
+    (d) => Object.keys(d.notes).length || d.outbox.length || Object.keys(d.conflicts).length,
+  );
+
+async function checkServerInstance() {
+  try {
+    const res = await fetch('/health');
+    const body = await readBody(res);
+    if (!res.ok || typeof body?.instance_id !== 'string') return;
+    const known = storage.read(INSTANCE_KEY, null);
+    if (known === body.instance_id) return;
+    if (known === null || !hasLocalData()) {
+      storage.write(INSTANCE_KEY, body.instance_id); // nothing stale to warn about
+      $('restart-warning').hidden = true;
+      return;
+    }
+    $('restart-warning').dataset.instance = body.instance_id;
+    $('restart-warning').hidden = false;
+  } catch {
+    /* reported by the API warning instead */
+  }
+}
+
+function acceptServerInstance(resetLocal) {
+  const banner = $('restart-warning');
+  if (resetLocal) resetDevices();
+  if (banner.dataset.instance) storage.write(INSTANCE_KEY, banner.dataset.instance);
+  banner.hidden = true;
+  render();
+}
+
 async function refreshServer() {
+  checkServerInstance();
   const tbody = $('server-notes');
   try {
     const res = await fetch('/notes');
@@ -542,6 +579,8 @@ $('devices').addEventListener('submit', (e) => {
 $('add-device').addEventListener('click', () => { addDevice(); render(); });
 $('reset-devices').addEventListener('click', () => { resetDevices(); render(); });
 $('refresh-server').addEventListener('click', refreshServer);
+$('restart-reset').addEventListener('click', () => acceptServerInstance(true));
+$('restart-keep').addEventListener('click', () => acceptServerInstance(false));
 $('clear-log').addEventListener('click', () => { netEntries.length = 0; renderNetLog(); });
 $('receipt-form').addEventListener('submit', (e) => {
   e.preventDefault();

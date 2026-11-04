@@ -28,11 +28,11 @@ Tests:
 
 ```bash
 npm test               # domain unit tests (35)
-npm run test:e2e       # HTTP tests through the Nest app (8)
+npm run test:e2e       # HTTP tests through the Nest app (9)
 npm run lint
 ```
 
-State is in memory: restarting the server clears it. The simulator's devices keep their own `localStorage`, so after a restart press **Reset devices** for a clean demo.
+State is in memory: restarting the server clears it. The simulator's devices keep their own `localStorage`, the way a real offline app keeps local data. When the simulator notices that the server restarted (through `GET /health`), it shows a banner offering **Reset devices**. It never wipes device data on its own.
 
 ---
 
@@ -84,6 +84,7 @@ curl -s localhost:3000/operations/b1     # stored conflict receipt
 | `POST /sync` | Body `{ "operations": Operation[] }` (max 1000). Returns `{ "results": OpResult[] }`: one result per operation, in order. Always `200` when the envelope is valid. A bad operation becomes an `invalid` result instead of failing the batch. |
 | `GET /notes` · `GET /notes/:id` | Current state (404 if the note does not exist). Read-only: notes change only through operations. |
 | `GET /operations/:opId` | The stored receipt for an operation (404 if unknown). |
+| `GET /health` | `{ status, instance_id, started_at }`. `instance_id` changes on every restart, which tells clients that the state they synced against is gone. |
 
 ```ts
 Operation = { op_id: string; note_id: string; base_revision: number; text: string }
@@ -140,6 +141,7 @@ src/sync/
   sync.module.ts          wires repositories (by token) and the engine
   sync.controller.ts      POST /sync, GET /operations/:opId
   notes.controller.ts     GET /notes, GET /notes/:id
+src/health.controller.ts  GET /health (instance id changes per restart)
 test/sync.e2e-spec.ts     the challenge example and the envelope contract over HTTP
 public/                   device simulator (plain HTML/JS)
 ```
@@ -157,7 +159,7 @@ public/                   device simulator (plain HTML/JS)
 
 ## Tests worth reading
 
-There are 35 unit and 8 e2e tests. These three explain the solution best:
+There are 35 unit and 9 e2e tests. These three explain the solution best:
 
 1. **A resent conflict returns the old receipt, while a query shows the present.** `sync-engine.spec.ts`: _"a conflict also claims the op_id: resend returns the same old conflict"_.
    A conflict at revision 2 is stored. The note then moves to revision 4, and the same operation arrives again. **Expected:** the identical conflict receipt (`server_note.revision: 2`) and no change to the note.
