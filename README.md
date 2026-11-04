@@ -2,7 +2,7 @@
 
 **Case 05 — Offline notes synchronization**
 **Focus:** back end (sync rules and API), with a browser simulator of offline clients for the demo
-**Time spent:** _TODO: fill in (e.g. ~4 h)_
+**Time spent:** ~3 h
 **Video:** https://youtu.be/pqbFgRaCV9s
 
 A sync server that never silently overwrites work. A device sends an operation that says "I saw revision N of this note, replace the text with X". The server accepts it only if N is still the current revision. Otherwise it returns a conflict holding both the server's text and the client's proposal, and lets the person decide. Every valid operation's receipt is stored by `op_id`, so a client can safely resend after a network failure: it gets the original receipt back, and nothing is applied twice.
