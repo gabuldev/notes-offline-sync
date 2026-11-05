@@ -5,6 +5,8 @@ import { InMemoryNotesRepository } from './infra/in-memory-notes.repository';
 import { InMemoryReceiptsRepository } from './infra/in-memory-receipts.repository';
 import { NotesController } from './notes.controller';
 import { SyncController } from './sync.controller';
+import { ReceiptLookupController } from './receipt-lookup.controller';
+import { ReceiptLookupService } from './receipt-lookup.service';
 import { NOTES_REPOSITORY, RECEIPTS_REPOSITORY } from './tokens';
 
 /**
@@ -13,8 +15,9 @@ import { NOTES_REPOSITORY, RECEIPTS_REPOSITORY } from './tokens';
  * Swapping storage means swapping the two repository providers below.
  */
 @Module({
-  controllers: [SyncController, NotesController],
+  controllers: [SyncController, NotesController, ReceiptLookupController],
   providers: [
+    ReceiptLookupService,
     { provide: NOTES_REPOSITORY, useClass: InMemoryNotesRepository },
     { provide: RECEIPTS_REPOSITORY, useClass: InMemoryReceiptsRepository },
     {
